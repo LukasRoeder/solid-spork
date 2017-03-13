@@ -191,6 +191,7 @@ public class Game {
 	public boolean everyoneTookAction(){
 		boolean allPlayersHaveTakenAction = true;
 		//Tests if all players have send an action. Sets tmp to false if someone didn't.
+		System.out.println("hasTakenActionMap: " + hasTakenActionMap);
 		for (Entry<Integer, Boolean> entry : hasTakenActionMap.entrySet()){
 			int tmpPlayerId = entry.getKey();
 			Player tmpPlayer = everyPlayerMap.get(tmpPlayerId);
@@ -324,7 +325,7 @@ public class Game {
 	 * @return challengeList a list of all challenges that are issued this tick.
 	 */
 	public LinkedList<Map<Integer, Player>> checkForChallenges() {
-		System.out.println("i am checking for battles");
+//		System.out.println("i am checking for battles");
 		//initialise an empty list of challenges
 		LinkedList<Map<Integer, Player>> challengeList = new LinkedList<Map<Integer, Player>>();
 		//check for every tile if there is more than 1 player on it
@@ -349,9 +350,11 @@ public class Game {
 
 	//formally and brutally executes the player.
 	public void killPlayer(int playerId) {
+		removeFromWorld(everyPlayerMap.get(playerId));
 		actionMap.remove(playerId);
 		alivePlayers.remove(playerId);
 		everyPlayerMap.get(playerId).setAlive(false);
+		hasTakenActionMap.remove(playerId);
 	}
 
 	public void respawn(Player player) {
@@ -431,11 +434,6 @@ public class Game {
 	
 	public void removeFromTakenActionMap(int playerId){
 		hasTakenActionMap.remove(playerId);
-	}
-
-	public void removeCompletely(int playerId) {
-		// TODO Auto-generated method stub
-		
 	}
 
 	public void nextTick() {

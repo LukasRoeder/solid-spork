@@ -59,10 +59,10 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 				
 				battleIsRunning = true;
 				while(battleIsRunning){
-//					battleInputInterpreter(battleScanner);
 					battleInputInterpreter();
 				}
 			}
+			battleScanner.close();
 		}
 		
 		public void battleOver(){
@@ -159,6 +159,14 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 			case "quit":
 			case "q" : System.out.println("havent implemented this yet, just close the window"); break;
 			}
+		} else if(state == PlayerState.DEAD){
+			System.out.println("YOU DIED!");
+			looping = false;
+			battleLoop = false;
+		} else if(state == PlayerState.GAMEOVER){
+			System.out.println("You already won, go home.");
+			looping = false;
+			battleLoop = false;
 		}
 //		else if(state == PlayerState.INBATTLE){
 //			try {
@@ -180,7 +188,9 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 				System.out.println("Disconnected from the server!");
 				e.printStackTrace();
 			}
-		} else{
+		} else if(state == PlayerState.DEAD){
+			
+		} else {
 			try {
 				printSurroundings(serverStub.getSurroundings(me));
 				
@@ -273,36 +283,6 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 //		gui.repaint();
 	}
 
-	public void saySomething(String s) throws RemoteException {
-		System.out.println("The server told me: " + s);
-	}
-	
-//	public static void main(String[] args){
-//		
-//		scanner = new Scanner(System.in);
-//		System.out.println("Please enter your name: ");	
-//		
-//		String name = scanner.nextLine();
-//		String host = "localhost";
-//		
-//		try {
-//			cT = new ClientThread();
-//			 
-//	        Registry reg = LocateRegistry.getRegistry(host);
-//	        server.ServerInterface s = (server.ServerInterface) reg.lookup(RMI_NAME);
-//	            
-//	            
-//	            
-//	        new Client(name, s).run();
-//	            
-//	        scanner.close();
-//	        System.exit(0);
-//	            
-//		} catch (Exception e) {
-//			e.printStackTrace();
-//			System.exit(1);
-//		}
-//	}
 
 	public boolean ping() throws RemoteException {
 		return true;
@@ -333,12 +313,28 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 	@Override
 	public void notifyBattleOver() throws RemoteException {
 		bT.battleOver();
-		
+					//TODO ?
 		System.out.println("Battle is over! Press any key to continue.");
 //		printSurroundings(serverStub.getSurroundings(me));
 		synchronized(lock){
 			state = PlayerState.TURNBASED;
 			lock.notify();
 		}
+	}
+
+	@Override
+	public void notifyVictory() throws RemoteException {
+		state = PlayerState.GAMEOVER;
+		System.out.println("You are Victorious!");
+		looping = false;
+		battleLoop = false;
+	}
+
+	@Override
+	public void notifyDead() throws RemoteException {
+		state = PlayerState.DEAD;
+		System.out.println("YOU DIED!");
+		looping = false;
+		battleLoop = false;
 	}
 }

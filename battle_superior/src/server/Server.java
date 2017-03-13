@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 
 import client.ClientInterface;
 import utils.SupUtils.*;
@@ -59,8 +60,8 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 	/** Constructor */
 	public Server() throws RemoteException{
 		game = new Game();
-		clientMap = new HashMap<>();
-		clientMapReversed = new HashMap<>();
+		clientMap = new ConcurrentHashMap<>();
+		clientMapReversed = new ConcurrentHashMap<>();
 		
         System.out.println("The server is open!");
 		
@@ -70,6 +71,7 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 	
 	/** This does a server tick. */
 	private void update() {
+//		System.out.println("game everPlayerMap: " + game.getEveryPlayerMap());
 		synchronized(lock){
 			checkForDisconnects();
 			switch (game.getState()){
@@ -79,16 +81,30 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 					game.setState(GameState.TURNBASED);
 					System.out.println("The game will start now!");
 					initGame();
+					game.checkForBattles();
 				}
 				break;
 			case TURNBASED :
-				if(game.everyoneTookAction()){
-					game.nextTick();
-					game.checkForBattles();
-					wakeUpClients();
+				if(game.isOver()){
+					game.setState(GameState.GAMEOVER);
+					int winnerId = game.getWinner().getId();
+					try{
+						clientMapReversed.get(winnerId).notifyVictory();
+					} catch (RemoteException e){
+						e.printStackTrace();
+					}
+				} else {
+//					System.out.println(game.everyoneTookAction());
+					if(game.everyoneTookAction()){
+						game.nextTick();
+						game.checkForBattles();
+						wakeUpClients();
+					}
+					battleHandler();
 				}
-				battleHandler();
 				break;
+			case GAMEOVER : break;
+			default: System.out.println("you done goofed"); break;
 			}
 			lock.notifyAll();
 		}
@@ -96,7 +112,7 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 	
 	/** notifies all clients */
 	private void wakeUpClients() {
-		System.out.println("Notifying the clients now.");
+//		System.out.println("Notifying the clients now.");
 		for(ClientInterface c : clientMap.keySet()){
 			PlayerState curState = getPlayer(c).getState();
 			if(curState == PlayerState.TURNBASED){
@@ -119,16 +135,15 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 	 * Handles all necessary updated of all battles. 
 	 */
 	private void battleHandler(){
-		for (Entry<Integer, Battle> battleEntry : game.getBattleIdToBattle().entrySet()){	
+		for (Entry<Integer, Battle> battleEntry : game.getBattleIdToBattle().entrySet()){
 			Battle curBattle = battleEntry.getValue();
-			if(curBattle.isBattleOver()){
-				battleOverHandler(curBattle);
-			} else{
-				boolean battleUpdatesSend = false;
-				List<TargetData> tmpData = curBattle.getTargetData(); 
-				Map<Integer, Player> tmpContenders = curBattle.getContenders();
-				for (Entry<Integer, Player> curContender : tmpContenders.entrySet()){
-					Integer curContenderId = curContender.getKey();
+			boolean battleUpdatesSend = false;
+			List<TargetData> tmpData = curBattle.getTargetData(); 
+			Map<Integer, Player> tmpContenders = curBattle.getContenders();
+			for (Entry<Integer, Player> curContender : tmpContenders.entrySet()){
+				Integer curContenderId = curContender.getKey();
+				Player curPlayer = curContender.getValue();
+				if(curPlayer.isAlive()){
 					if (curBattle.isBattleUpdated()){
 						try {
 							battleUpdatesSend = true;
@@ -138,12 +153,35 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 							disconnect(clientMapReversed.get(curContenderId));
 							e.printStackTrace();
 						}
+					} 
+				} else {
+					System.out.println("killing a player");
+					game.killPlayer(curContenderId);
+					try {
+						clientMapReversed.get(curContenderId).notifyDead();
+					} catch (RemoteException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
 					}
 				}
-				if(battleUpdatesSend){
-					curBattle.setBattleUpdated(false);
-				}
+//					if (curBattle.isBattleUpdated()){
+//						try {
+//							battleUpdatesSend = true;
+//							//Here the data gets send to the client
+//							clientMapReversed.get(curContenderId).sendTargetData(tmpData);
+//						} catch (RemoteException e) {
+//							disconnect(clientMapReversed.get(curContenderId));
+//							e.printStackTrace();
+//						}
+//					}
 			}
+			if(battleUpdatesSend){
+				curBattle.setBattleUpdated(false);
+			}
+			
+			if(curBattle.isBattleOver()){
+				battleOverHandler(curBattle);
+			} 
 		}
 	}
 
@@ -209,9 +247,13 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 	private void disconnect(ClientInterface c) {
 		//TODO: This is not finished yet. Players need to be removed from clientMap and clientMapReversed
 		int playerId = clientMap.get(c);
+		if(!(game.getState() == GameState.LOBBY)){
+			game.killPlayer(playerId);
+		}
 		System.out.println("Player " + clientMap.get(c) + " has disconnected!");
-		game.removeCompletely(playerId);
-		
+		clientMap.remove(c);
+		clientMapReversed.remove(playerId);
+		game.getEveryPlayerMap().remove(playerId);
 	}
 	
 	/** initialises the game */
@@ -301,19 +343,6 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 				return false;
 			}
 		}
-	}
-
-	@Override
-	public String sayHello(String s){
-		System.out.println(s);
-		for(ClientInterface c : clientMap.keySet()){
-			try {
-				c.saySomething("I suppose i can contact you.");
-			} catch (RemoteException e) {
-				System.out.println("Could not answer to Client! ");
-			}
-		}
-		return "You just said: " + s;
 	}
 	
 	@Override

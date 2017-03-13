@@ -19,14 +19,6 @@ public interface ServerInterface extends Remote{
 	 */
 	public boolean join(ClientInterface c, String name) throws RemoteException;
 	
-	/**
-	 * debug method to test if the rmi structure works.
-	 * @param s 
-	 * @return
-	 * @throws RemoteException
-	 */
-	public String sayHello(String s) throws RemoteException;
-	
 	/** Use this to send your movement */
 	public boolean move(ClientInterface c, int direction) throws RemoteException;
 
@@ -48,5 +40,11 @@ public interface ServerInterface extends Remote{
 	 */
 	public void sendActions(ClientInterface clientIn, Direction direction) throws RemoteException;
 
+	/**
+	 * relays the attack of the player to the game.
+	 * @param clientIn the attacking player
+	 * @param inputIn the attack of the player
+	 * @throws RemoteException
+	 */
 	public void sendAttack(ClientInterface clientIn, String inputIn) throws RemoteException;
 }
