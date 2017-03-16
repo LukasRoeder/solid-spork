@@ -43,10 +43,8 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 	private class ClientThread extends Thread{
 		public void run(){
 			while(looping){
-//				inputInterpreter(scanner);
 				inputInterpreter();
 			}
-//		        System.out.println(WhoisRIR.valueOf("arin".toUpperCase()));
 			scanner.close();
 			System.exit(0);
 		}
@@ -67,7 +65,6 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 					}
 				}
 				System.out.println("its time for a duel");
-//				System.out.println(state.name());
 				
 				battleIsRunning = true;
 				
@@ -97,19 +94,14 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 				synchronized(lock){
 				serverStub.sendActions(me, direction); 
 					try{
-//						System.out.println("waiting now");
 						lock.wait();
-
-//						System.out.println("done waiting");
 					   } catch (InterruptedException e){
-						   System.out.println("Next round should be now.");
+						   e.printStackTrace();
 					   }
 				    }
 
-//				System.out.println("after synchronized, getting surroundings");
 				printSurroundings(serverStub.getSurroundings(me));
 				hasMoved = false;
-//				System.out.println("gotem");
 			   } catch (RemoteException e){
 				   System.out.println("Disconnected from the server!");
 				   e.printStackTrace();
@@ -133,13 +125,6 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 	        
 			me = this;
 	        
-//	        if(!serverStub.join(this, name)){
-//	        	System.out.println("Failed to join the server!");
-//	        } else{
-//				cT = new ClientThread();
-//				cT.start();
-//	        }
-	        
 			//join the server
 	        serverStub.join(this, name);
 	        //initialize and start the client thread
@@ -148,35 +133,11 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 			//initialize and start the battlethread
 			bT = new BattleThread();
 			bT.start();
-	        
-//			scanner.close();
-//			System.exit(0);
-	            
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.exit(1);
 		}
 	}
-	
-//	public synchronized void run() throws InterruptedException {
-//		try {
-//			serverStub.join(me, name);
-//			while(looping){
-//				String input = scanner.nextLine();
-//				inputInterpreter(input);
-//				try{
-//					wait();
-//				} catch (InterruptedException e){
-//					System.out.println("I was woken up!");
-//				}
-//				System.out.println("After the catch");
-//			}
-////	        System.out.println(WhoisRIR.valueOf("arin".toUpperCase()));
-//		} catch (RemoteException e) {
-//			System.out.println("Failed to join the server!");
-//			e.printStackTrace();
-//		}
-//	}
 	
 	private synchronized void inputInterpreter(){
 		String input = "";
@@ -189,7 +150,6 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 					System.out.println("I am now ready! The Game will start when all players are ready");
 					waitForGameStart();
 				} catch (RemoteException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 					   break;
@@ -215,17 +175,10 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 			looping = false;
 			battleLoop = false;
 		}
-//		else if(state == PlayerState.INBATTLE){
-//			try {
-//				serverStub.sendAttack(me, input);
-//			} catch (RemoteException e) {
-//				System.out.println("Disconnected from the server!");
-//				e.printStackTrace();
-//			}
-//		}
 	}
 	
 	private void battleInputInterpreter(){
+		@SuppressWarnings("resource")
 		Scanner battleScanner = new Scanner(System.in);
 		String input = battleScanner.nextLine();
 		if(state == PlayerState.INBATTLE){
@@ -270,32 +223,6 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 		   }	  
 	}
 
-	/**sends the players move to the server, waits until the tick starts and then asks the server for his new surroundings.
-	 * @param direction the direction the player wants to move in */
-//	private void move(Direction direction) {
-//		System.out.println("You are moving " + direction.name());	
-//		try{
-//			synchronized(lock){
-//			serverStub.sendActions(me, direction); 
-//				try{
-////					System.out.println("waiting now");
-//					lock.wait();
-//
-////					System.out.println("done waiting");
-//				   } catch (InterruptedException e){
-//					   System.out.println("Next round should be now.");
-//				   }
-//			    }
-//
-////			System.out.println("after synchronized, getting surroundings");
-//			printSurroundings(serverStub.getSurroundings(me));
-////			System.out.println("gotem");
-//		   } catch (RemoteException e){
-//			   System.out.println("Disconnected from the server!");
-//			   e.printStackTrace();
-//		   }
-//	}
-
 	/** waiting for the game to start */
 	private void waitForGameStart() {
 		synchronized(lock){
@@ -327,10 +254,6 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 		System.out.println("West of you is a " + tiles[4].getType().name());
 		
 		updateGui();
-		//TODO: uncomment this when we implement 
-//		gui.updateTiles(surroundings, direction);
-//		printNearbyPlayers();
-//		gui.repaint();
 	}
 	
 	private void updateGui(){
@@ -371,15 +294,14 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 		for(TargetData curData : tmpData){
 			System.out.println(curData.toString());
 		}
+		System.out.println("");
 		bGui.updateTargets(tmpData);
 	}
 
 	@Override
 	public void notifyBattleOver() throws RemoteException {
 		bT.battleOver();
-					//TODO ?
 		System.out.println("Battle is over! Press any key to continue.");
-//		printSurroundings(serverStub.getSurroundings(me));
 		synchronized(lock){
 			bGui.setVisible(false);
 			state = PlayerState.TURNBASED;
@@ -389,9 +311,11 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 
 	@Override
 	public void notifyVictory() throws RemoteException {
+		if(state == PlayerState.INBATTLE){
+			bGui.setVisible(false);
+		}
 		state = PlayerState.GAMEOVER;
 		System.out.println("You are Victorious!");
-		bGui.setVisible(false);
 		gui.sendMessage("The Game is over. You have won! Glory to " + name + "!");
 		looping = false;
 		battleLoop = false;
@@ -415,8 +339,6 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 					
 					hasMoved = true;
 					
-					System.out.println("Action Performed!!");
-					
 					Object source = e.getSource();
 					
 					boolean buttonBool = false;
@@ -428,14 +350,7 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 					else if(source == gui.getRestButton1()||source == gui.getRestButton2()){tmpDirection = Direction.STAY; buttonBool=true;}
 					if(buttonBool){
 						moveDirection = tmpDirection;
-//						try {
-//							serverStub.sendActions(me, direction2);
-//						} catch (RemoteException e1) {
-//							e1.printStackTrace();
-//							System.out.println("Disconnected from the server!");
-//						}
 						new MoveThread(moveDirection).start();
-//						move(direction2);
 					}
 				}
 			}

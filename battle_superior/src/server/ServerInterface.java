@@ -9,8 +9,6 @@ import utils.SupUtils.Direction;
 
 public interface ServerInterface extends Remote{
 
-
-	
 	/**
 	 * join the server via this method.
 	 * @param c the Client to register

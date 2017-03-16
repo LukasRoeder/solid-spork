@@ -1,6 +1,5 @@
 package server;
 
-import java.rmi.RemoteException;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -29,9 +28,8 @@ public class Game {
 	//relates a player id to a battle id
 	private Map<Integer, Integer> playerToBattleId = new ConcurrentHashMap<Integer, Integer>();
 
-	//	private ArrayList<int[]> actionList = new ArrayList<int[]>();	//TODO check if the move is valid as soon as the client sends it to the server
-	private int width = 3;
-	private int height = 3;
+	private int width = 4;
+	private int height = 4;
 	private World gameWorld;
 	
 	private GameState gameState;
@@ -61,12 +59,7 @@ public class Game {
 		}
 	}
 
-	//TODO should be something like proccessActions as it will be used for more than movement
-	//when its implemented
 	private void movePlayers(){
-		//TODO: stuff like player reg etc.
-		//TODO for loop over the action[i] because we may need to do this for multiple actions
-		//for(int i = 1; i > action.length; i++){ //problem because action is not defined yet
 		for(Entry<Integer, Direction> action : actionMap.entrySet()){
 			
 			int key = action.getKey();
@@ -131,7 +124,6 @@ public class Game {
 
 	//makes a player join the server, asks for a name  and returns the player ID for the client
 	public void join(Player playerIn){
-		//TODO: maybe check for identical names
 		addPlayer(playerIn);
 	}
 	
@@ -144,45 +136,13 @@ public class Game {
 	}		
 	
 	//adds an action to the actionMap, returns true if every player has added an action to the actionMap for the next Tick.
-	public void addAction(int idIn, Direction action){
-		System.out.println("adding Actions now!");
-		
+	public void addAction(int idIn, Direction action){		
 		if(everyPlayerMap.get(idIn).isAlive()){
 			actionMap.put(idIn, action);
 			//Flags the player in the hasTakenActionMap as true for having send an action
 			hasTakenActionMap.put(idIn, true);
 		}
 	}
-	
-	//OLD addAction
-//	public boolean addAction(int idIn, Direction action){
-//		
-//		System.out.println("adding Actions now!");
-//		
-//		if(everyPlayerMap.get(idIn).isAlive()){
-//			actionMap.put(idIn, action);
-//			//Flags the player in the hasTakenActionMap as true for having send an action
-//			hasTakenActionMap.put(idIn, true);
-//			boolean allPlayersHaveTakenAction = true;
-//			//Tests if all players have send an action. Sets tmp to false if someone didn't.
-//			for (Entry<Integer, Boolean> entry : hasTakenActionMap.entrySet()){
-//				int tmpPlayerId = entry.getKey();
-//				Player tmpPlayer = everyPlayerMap.get(tmpPlayerId);
-//										//only test players that are in the turn based game
-//				if (!entry.getValue() && tmpPlayer.getState() == PlayerState.TURNBASED){
-//					allPlayersHaveTakenAction = false;
-//				} 
-//			}
-//			//moves all players if 
-//			if (allPlayersHaveTakenAction){
-//				movePlayers();
-//				System.out.println("Next Tick!");
-//				initHasTakenActionMap(false);
-//				System.out.println("returning true now!");
-//				return true;
-//			} else { System.out.println("returning false because not all players have taken action! ") ;return false; }
-//		} System.out.println("returning false brcause idk");return false;
-//	}
 	
 	/**
 	 * Tests if everyone has taken action for this turn.
@@ -191,7 +151,6 @@ public class Game {
 	public boolean everyoneTookAction(){
 		boolean allPlayersHaveTakenAction = true;
 		//Tests if all players have send an action. Sets tmp to false if someone didn't.
-		System.out.println("hasTakenActionMap: " + hasTakenActionMap);
 		for (Entry<Integer, Boolean> entry : hasTakenActionMap.entrySet()){
 			int tmpPlayerId = entry.getKey();
 			Player tmpPlayer = everyPlayerMap.get(tmpPlayerId);
@@ -325,17 +284,14 @@ public class Game {
 	 * @return challengeList a list of all challenges that are issued this tick.
 	 */
 	public LinkedList<Map<Integer, Player>> checkForChallenges() {
-//		System.out.println("i am checking for battles");
 		//initialise an empty list of challenges
 		LinkedList<Map<Integer, Player>> challengeList = new LinkedList<Map<Integer, Player>>();
 		//check for every tile if there is more than 1 player on it
 		for (int x = 0; x < width; x++){
 			for (int y = 0; y < height; y++){
 				Map<Integer, Player> playersInTile = gameWorld.getPlayersFromTile(x, y);
-//				System.out.println("(checkForBattles) tmpMap: " + playersInTile);
 				//if theres more than one player on a tile
 				if (playersInTile.size() > 1){
-					System.out.println("i put something in the challenge list");
 					//add them to the challengelist
 					challengeList.add(playersInTile);
 				}	
@@ -350,11 +306,7 @@ public class Game {
 
 	//formally and brutally executes the player.
 	public void killPlayer(int playerId) {
-//		removeFromWorld(everyPlayerMap.get(playerId));
-//		actionMap.remove(playerId);
-//		alivePlayers.remove(playerId);
 		everyPlayerMap.get(playerId).setAlive(false);
-//		hasTakenActionMap.remove(playerId);
 	}
 	
 	public void removeDeadPlayer(int playerId){
@@ -465,7 +417,6 @@ public class Game {
 		try{
 			Battle curBattle = battleIdToBattle.get(playerToBattleId.get(playerId));
 			curBattle.attack(inputIn);
-			System.out.println("Player (ID: " + playerId + ") has attacked with " + inputIn);
 		} catch(Exception e){
 			e.printStackTrace();
 			System.out.println("Invalid attack!");
@@ -480,13 +431,5 @@ public class Game {
 		battleIdToBattle.remove(battle.getBattleId());
 	}
 	
-//	if (allPlayersHaveTakenAction){
-//		movePlayers();
-//		System.out.println("Next Tick!");
-//		initHasTakenActionMap(false);
-//		System.out.println("returning true now!");
-//		return true;
-//	} else { System.out.println("returning false because not all players have taken action! ") ;return false; }
-//	
 }
 

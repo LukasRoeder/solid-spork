@@ -27,15 +27,6 @@ public class ViewMap {
 		playerY = 0;
 	}
 	
-//	public void update(int[] surroundings, int direction){
-//		
-//		moving = testDirection(direction);
-//		if (moving){
-//			movePlayer(direction);
-//			updateMap(surroundings);
-//		}
-//	}
-	
 	public void update(Tile[] surroundings, Direction direction){
 		
 		moving = testDirection(direction);
@@ -60,7 +51,6 @@ public class ViewMap {
 	
 	//actually builds the tiles and puts them into the map
 	private void buildTile(int x, int y, TileType type){
-		System.out.println("Building Tile: " + x + "," + y + ":" + type);
 		ViewTile tile = new ViewTile();
 		tile.setX(x);
 		tile.setY(x);
@@ -83,6 +73,7 @@ public class ViewMap {
 			case EAST: playerX++; break;
 			case SOUTH: playerY++; break;
 			case WEST: playerX--; break;
+			default: break;
 			}
 	}
 	

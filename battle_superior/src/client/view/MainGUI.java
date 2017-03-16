@@ -104,14 +104,8 @@ public class MainGUI extends JFrame  {
 		setLocationByPlatform(true);
 		setVisible(true);
 	}
-
-//	public void updateTiles(int[] surroundings, int direction) {
-//		System.out.println("(MainGUI) surroundings, direction: " + surroundings + direction);
-//		map.update(surroundings, direction);
-//	}
 	
 	public void updateTiles(Tile[] surroundings, Direction direction) {
-		System.out.println("(MainGUI) surroundings, direction: " + surroundings + direction);
 		map.update(surroundings, direction);
 	}
 	

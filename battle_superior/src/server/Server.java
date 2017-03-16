@@ -1,15 +1,23 @@
 package server;
 
 
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.rmi.RemoteException;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+
+import javax.swing.JFileChooser;
 
 import client.ClientInterface;
 import utils.SupUtils.*;
@@ -29,32 +37,107 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 	private boolean looping;
 	
 	private ServerThread sT;
+	private ServerInputThread sIT;
 	
 	/** The lock object on which we synchronise. */
 	private Object lock = new Object();
 	
 	private class ServerThread extends Thread{
 		public void run(){
-			System.out.println("running");
 			looping = true;
 			while(looping){
 				//updates stuff
 				update();
 				try {
-					sleep(300);
+					sleep(30);
 				} catch (InterruptedException e){
 					System.out.println("(ServerThread) I was interrupted!");
 				}
-				
-				
-//				System.out.println("iWasNotified");
-//				System.out.println("clientsMap: "+ clientsMap);
-//				if(allPlayersReady()){
-//					System.out.println("the players are ready");
-//					looping = false;
-//				}
 			}
 		}		
+	}
+	
+	private class ServerInputThread extends Thread{
+		private boolean running = true;
+		public void run(){
+			while(running){
+				try {
+					inputHandler();
+				} catch (ClassNotFoundException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+		
+		private void inputHandler() throws ClassNotFoundException {
+			@SuppressWarnings("resource")
+			Scanner scanner = new Scanner(System.in);
+			String input = scanner.nextLine();
+			
+			switch(input){
+			case "s" : saveWorld(); break;
+			case "l" : loadSavedWorld(); break;
+			case "q" : running = false;
+			}
+		}
+
+		
+		private void saveWorld() {
+			synchronized(lock){
+				if(game.getState() != GameState.LOBBY){
+					int tmpWidth;
+					int tmpHeight;
+					Tile[][] tmpMap;
+					
+					tmpWidth = game.getWidth();
+					tmpHeight = game.getHeight();
+					tmpMap = game.getGameWorld().getMap();
+					
+					SavedWorld tmpWorld = new SavedWorld(tmpWidth, tmpHeight,tmpMap);
+					
+					JFileChooser fileChooser = new JFileChooser();
+					int returnVal = fileChooser.showSaveDialog(null);
+					if(returnVal == JFileChooser.APPROVE_OPTION){
+						try{
+							OutputStream os = new FileOutputStream(fileChooser.getSelectedFile());
+							@SuppressWarnings("resource")
+							ObjectOutputStream oos = new ObjectOutputStream(os);
+							oos.writeObject(tmpWorld);
+							System.out.println("Saving successful!");
+						} catch (IOException e){
+							System.out.println("File could not be saved!");
+							System.out.println(e);
+						}
+					}
+				} else{
+					System.out.println("Failed to save World!");
+				}
+			}
+		}
+
+
+		private void loadSavedWorld() throws ClassNotFoundException{
+			synchronized(lock){
+				SavedWorld tmpWorld = null;
+				JFileChooser fileChooser = new JFileChooser();
+				int returnVal = fileChooser.showOpenDialog(null);
+				if (returnVal == JFileChooser.APPROVE_OPTION) {
+					try {
+						InputStream is = new FileInputStream(fileChooser.getSelectedFile());
+						ObjectInputStream ois = new ObjectInputStream(is);
+						tmpWorld = (SavedWorld) ois.readObject();
+						ois.close();
+					} catch (IOException exc) {
+						System.out.println("File could not be loaded!");
+						System.out.println(exc);
+					}
+					game.loadSavedWorld(tmpWorld);
+					System.out.println("loading successful");
+				}	else{
+					System.out.println("Loading cancelled.");
+				}
+			}
+		}
 	}
 	
 	/** Constructor */
@@ -67,12 +150,14 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 		
 		sT = new ServerThread();
 		sT.start();
+		sIT = new ServerInputThread();
+		sIT.start();
 	}
 	
 	/** This does a server tick. */
 	private void update() {
-//		System.out.println("game everPlayerMap: " + game.getEveryPlayerMap());
 		synchronized(lock){
+			//check for disconnects(kills a player if he dc'd)
 			checkForDisconnects();
 			game.removeDeadPlayers();
 			switch (game.getState()){
@@ -97,15 +182,14 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 						e.printStackTrace();
 					}
 				} else {
-					System.out.println("EveryPlayerMap: " + game.getEveryPlayerMap());
-//					System.out.println(game.everyoneTookAction());
 					if(game.everyoneTookAction()){
 						game.nextTick();
 						game.checkForBattles();
 						wakeUpClients();
 					}
-					battleHandler();
+//					battleHandler();
 				}
+				battleHandler();
 				break;
 			case GAMEOVER : break;
 			default: System.out.println("you done goofed"); break;
@@ -139,15 +223,19 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 	 * Handles all necessary updated of all battles. 
 	 */
 	private void battleHandler(){
+		//process every battle
 		for (Entry<Integer, Battle> battleEntry : game.getBattleIdToBattle().entrySet()){
 			Battle curBattle = battleEntry.getValue();
 			boolean battleUpdatesSend = false;
 			List<TargetData> tmpData = curBattle.getTargetData(); 
 			Map<Integer, Player> tmpContenders = curBattle.getContenders();
+			//iterate over ever player in the current battle
 			for (Entry<Integer, Player> curContender : tmpContenders.entrySet()){
 				Integer curContenderId = curContender.getKey();
 				Player curPlayer = curContender.getValue();
+				//check if the player is alive
 				if(curPlayer.isAlive()){
+					//check if the battle was updated
 					if (curBattle.isBattleUpdated()){
 						try {
 							battleUpdatesSend = true;
@@ -158,26 +246,16 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 							e.printStackTrace();
 						}
 					} 
+				//if the player is dead
 				} else {
 					System.out.println("killing a player");
 					game.killPlayer(curContenderId);
 					try {
 						clientMapReversed.get(curContenderId).notifyDead();
 					} catch (Exception e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
+//						e.printStackTrace();
 					}
 				}
-//					if (curBattle.isBattleUpdated()){
-//						try {
-//							battleUpdatesSend = true;
-//							//Here the data gets send to the client
-//							clientMapReversed.get(curContenderId).sendTargetData(tmpData);
-//						} catch (RemoteException e) {
-//							disconnect(clientMapReversed.get(curContenderId));
-//							e.printStackTrace();
-//						}
-//					}
 			}
 			if(battleUpdatesSend){
 				curBattle.setBattleUpdated(false);
@@ -249,7 +327,6 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 	
 	/** properly disconnects the client and removes him from the game */
 	private void disconnect(ClientInterface c) {
-		//TODO: This is not finished yet. Players need to be removed from clientMap and clientMapReversed
 		int playerId = clientMap.get(c);
 		if(!(game.getState() == GameState.LOBBY)){
 			game.killPlayer(playerId);
@@ -257,7 +334,6 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 		System.out.println("Player " + clientMap.get(c) + " has disconnected!");
 		clientMap.remove(c);
 		clientMapReversed.remove(playerId);
-//		game.getEveryPlayerMap().remove(playerId);
 	}
 	
 	/** initialises the game */
@@ -265,59 +341,21 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 		game.start();
 		
 		System.out.println("The game has started.");
-//		wakeUpClients();
 	}
-	
-//	public void init(){
-//		System.out.println("Initializing the server...");
-//		try {
-////	        LocateRegistry.createRegistry(Registry.REGISTRY_PORT).rebind(RMI_NAME, new Server());
-////	        System.out.println("The server is open!");
-//	        
-//	        sT = new ServerThread();
-//	        sT.start();
-//	        
-//	    } catch (Exception e) {
-//	        e.printStackTrace();
-//	        System.exit(1);
-//	    }
-//	}
-
-//	private synchronized void run() throws InterruptedException{
-//		System.out.println("running");
-//		boolean looping = true;
-//		while(looping){
-//			try {
-//				
-//			} catch (InterruptedException e){
-//				System.out.println("Too impatient to wait");
-//			}
-//			System.out.println("iWasNotified");
-//			System.out.println("clientsMap: "+ clientsMap);
-//			if(allPlayersReady()){
-//				System.out.println("the players are ready");
-//				looping = false;
-//			}
-//		}
-//	}
 	
 	/** checks if all players connected to the server are ready
 	 *  @return true if all players are ready, false if not. Also returns false if less then 2 players have connected.*/
 	private boolean allPlayersReady(){
-//		System.out.println("checking if all players Rdy");
-//		System.out.println("allplayersRdy clientsmap : " + clientMap);
 		boolean tmp = true;
 		for(Integer playerId : clientMap.values()){
 			Player curPlayer = game.getEveryPlayerMap().get(playerId);
 			if(!curPlayer.getReady()){
-//				System.out.println("someone is not ready");
 				tmp = false;
 			} 
 		}
 		//check if theres more than one player connected to the server
 		if(clientMap.size() < 2){
 			tmp = false;
-//			System.out.println("Theres not enough players connected to the Server to play the game. You need alteast 2 players.");
 		}
 		return tmp;
 	}
@@ -369,7 +407,7 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-			System.out.println("Player am ready now! ");
+			System.out.println("A Player is ready now!");
 			game.getEveryPlayerMap().get(clientMap.get(clientIn)).setReady();
 		}
 	}
@@ -380,7 +418,6 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 		int xPos = getPlayer(clientIn).getXPos();
 		int yPos = getPlayer(clientIn).getYPos();
 		tmp = game.getGameWorld().getSurroundings(xPos, yPos);
-		System.out.println("Surroundings: \nTile[]: " + tmp + "\nxPos: " + xPos + "\nyPos: " + yPos);
 		return tmp;
 	}
 

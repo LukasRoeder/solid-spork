@@ -4,6 +4,8 @@ import java.io.Serializable;
 
 public class TargetData implements Serializable{
 	
+	/** generated this cuz it was fun */
+	private static final long serialVersionUID = -3391229442727774563L;
 	private String target;
 	private int hp;
 	private String name;

@@ -26,7 +26,6 @@ public class World implements Serializable {
 	
 	//constuctor of the world
 	public World(int width, int height, Map<Integer, Player> playerMapIn){
-		System.out.println("(World) new Constructor");
 		this.width = width;
 		this.height = height;
 		everyPlayerMap = playerMapIn;
@@ -149,7 +148,6 @@ public class World implements Serializable {
 	}
 	
 	public void removeFromTile(Player player){
-//		System.out.println("Player to remove from Tile: " + player);
 		map[player.getXPos()][player.getYPos()].moveOutOf(player.getId());
 	}
 	
@@ -158,7 +156,6 @@ public class World implements Serializable {
 	}
 	
 	//loads the world
-	//TODO needs testing as soon as we can save a map
 	public static String loadFromFile (SavedWorld savedWorld) throws ClassNotFoundException{
 		
 		int tmpWidth = savedWorld.getWidth();
@@ -182,14 +179,11 @@ public class World implements Serializable {
 			System.out.println("(World.loadfromFile) World could not be loaded");
 		}
 		
-		System.out.println("loaded width: " + loadedWidth + "");
 		loadedWidth = tmpWidth;
 		loadedHeight = tmpHeight;
 		loadedMap = tmpMap;
 		
 		return tmpError;
-		
-		
 	}
 
 	public Tile[][] getMap() {

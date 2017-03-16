@@ -10,8 +10,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import utils.SupUtils;
 
-import static utils.SupUtils.*;
-
 public class Battle {
 	
 	private static int BATTLE_SRC = 0;
@@ -39,7 +37,6 @@ public class Battle {
 		}
 		//initialise the target map
 		initTargets();
-		System.out.println("this is the battle in constructor: " + this);
 	}
 	
 	private void initTargets(){
@@ -66,24 +63,26 @@ public class Battle {
 	 */
 	
 	public void attack(String input){
+		boolean successfullAttack = false;
 		int target = SupUtils.convertInputToTarget(input);
 		for(Entry<Integer, Integer> targetEntry : targetNumbers.entrySet()){
 			if (targetEntry.getValue() == target){
-				System.out.println("SOMEONE HIT A GUY!!");
 				Player attackedPlayer = contenders.get(targetEntry.getKey());
 				attackedPlayer.setHp(attackedPlayer.getHp()-10);
+				successfullAttack = true;
 				if(attackedPlayer.getHp() <= 0){
 					attackedPlayer.setAlive(false);
 				}
-				System.out.println("He now has " + contenders.get(targetEntry.getKey()).getHp() + "HP! HOW CRUEL!");
 				
 				battleUpdated = true;
 			}
 		}
-		rerollTargets();
+		if(successfullAttack){
+			rerollTargets();
+			successfullAttack = false;
+		}
 	}
 	
-
 	public List<TargetData> getTargetData(){
 		List<TargetData> dataList = new LinkedList<>();
 		for(Entry<Integer, Player> entry : contenders.entrySet()){
