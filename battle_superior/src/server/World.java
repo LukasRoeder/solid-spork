@@ -149,6 +149,7 @@ public class World implements Serializable {
 	}
 	
 	public void removeFromTile(Player player){
+//		System.out.println("Player to remove from Tile: " + player);
 		map[player.getXPos()][player.getYPos()].moveOutOf(player.getId());
 	}
 	

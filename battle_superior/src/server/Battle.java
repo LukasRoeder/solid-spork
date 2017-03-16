@@ -77,10 +77,10 @@ public class Battle {
 				}
 				System.out.println("He now has " + contenders.get(targetEntry.getKey()).getHp() + "HP! HOW CRUEL!");
 				
-				rerollTargets();
 				battleUpdated = true;
 			}
 		}
+		rerollTargets();
 	}
 	
 

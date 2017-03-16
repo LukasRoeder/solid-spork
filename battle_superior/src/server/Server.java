@@ -74,6 +74,7 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 //		System.out.println("game everPlayerMap: " + game.getEveryPlayerMap());
 		synchronized(lock){
 			checkForDisconnects();
+			game.removeDeadPlayers();
 			switch (game.getState()){
 			case LOBBY :
 				if(allPlayersReady()){
@@ -82,11 +83,13 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 					System.out.println("The game will start now!");
 					initGame();
 					game.checkForBattles();
+					wakeUpClients();
 				}
 				break;
 			case TURNBASED :
 				if(game.isOver()){
 					game.setState(GameState.GAMEOVER);
+					looping = false;
 					int winnerId = game.getWinner().getId();
 					try{
 						clientMapReversed.get(winnerId).notifyVictory();
@@ -94,6 +97,7 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 						e.printStackTrace();
 					}
 				} else {
+					System.out.println("EveryPlayerMap: " + game.getEveryPlayerMap());
 //					System.out.println(game.everyoneTookAction());
 					if(game.everyoneTookAction()){
 						game.nextTick();
@@ -159,7 +163,7 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 					game.killPlayer(curContenderId);
 					try {
 						clientMapReversed.get(curContenderId).notifyDead();
-					} catch (RemoteException e) {
+					} catch (Exception e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
@@ -253,7 +257,7 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 		System.out.println("Player " + clientMap.get(c) + " has disconnected!");
 		clientMap.remove(c);
 		clientMapReversed.remove(playerId);
-		game.getEveryPlayerMap().remove(playerId);
+//		game.getEveryPlayerMap().remove(playerId);
 	}
 	
 	/** initialises the game */
@@ -261,7 +265,7 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 		game.start();
 		
 		System.out.println("The game has started.");
-		wakeUpClients();
+//		wakeUpClients();
 	}
 	
 //	public void init(){
@@ -388,5 +392,45 @@ public class Server extends UnicastRemoteObject implements ServerInterface{
 	@Override
 	public void sendAttack(ClientInterface clientIn, String inputIn) throws RemoteException {
 		game.relayAttack(clientMap.get(clientIn), inputIn);
+	}
+
+	@Override
+	public Map<String, Integer> getNearbyPlayer(ClientInterface clientIn) throws RemoteException {
+		
+		Map<Integer, Player> tmpPlayerMap = game.getEveryPlayerMap();
+		Map<String, Integer> nearbyPlayers = new HashMap<String, Integer>();
+		
+		int playerId = clientMap.get(clientIn);
+		
+		int xMe = tmpPlayerMap.get(playerId).getXPos();
+		int yMe = tmpPlayerMap.get(playerId).getYPos();
+		
+		for(Integer key : tmpPlayerMap.keySet()){
+			if (tmpPlayerMap.get(key).isAlive()){
+				if (key != playerId){
+					int xOther = tmpPlayerMap.get(key).getXPos();
+					int yOther = tmpPlayerMap.get(key).getYPos();
+					String nameOther = tmpPlayerMap.get(key).getPlayerName() + "(" + key + ")";
+					
+					//Other is north of us
+					if(xMe == xOther && yMe == yOther + 1){
+						nearbyPlayers.put(nameOther, 1);
+					//Other is east of us
+					} else if (xMe == xOther - 1 && yMe == yOther){
+						nearbyPlayers.put(nameOther, 2);
+					//Other is south of us
+					} else if (xMe == xOther && yMe == yOther - 1){
+						nearbyPlayers.put(nameOther, 3);
+					//Other is west of us
+					} else if (xMe == xOther + 1 && yMe == yOther){
+						nearbyPlayers.put(nameOther, 4);
+					//Other is standing on top of you (literally)
+					} else if (xMe == xOther && yMe == yOther){
+						nearbyPlayers.put(nameOther,0);
+					}
+				}
+			}
+		}
+		return nearbyPlayers;		
 	}
 }

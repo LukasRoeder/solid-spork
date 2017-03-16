@@ -1,5 +1,7 @@
 package client;
 
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
@@ -7,6 +9,7 @@ import java.rmi.server.UnicastRemoteObject;
 import java.util.List;
 import java.util.Scanner;
 
+import client.view.*;
 import server.TargetData;
 import server.Tile;
 
@@ -16,7 +19,7 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 
 	private static final long serialVersionUID = 786409760918255712L;
 	
-	
+	//attributes of the client
 	private String name;
 	/** the Server the client connects to */
 	private server.ServerInterface serverStub;
@@ -28,7 +31,14 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 	private Client me;
 	final private Object lock = new Object();
 	final private Object battleLock = new Object();
+	final private Object guiLock = new Object();
 	private PlayerState state = PlayerState.LOBBY;
+	private MainGUI gui;
+	private BattleGUI bGui;
+	private Direction moveDirection = Direction.STAY;
+	private SuperiorActionListener listener = new SuperiorActionListener();
+	private SuperiorBattleActionListener battleListener = new SuperiorBattleActionListener();
+	private boolean hasMoved = false;
 	
 	private class ClientThread extends Thread{
 		public void run(){
@@ -40,6 +50,8 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 			scanner.close();
 			System.exit(0);
 		}
+		
+		
 	}
 	
 	private class BattleThread extends Thread{
@@ -58,6 +70,7 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 //				System.out.println(state.name());
 				
 				battleIsRunning = true;
+				
 				while(battleIsRunning){
 					battleInputInterpreter();
 				}
@@ -70,13 +83,47 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 		}
 	}
 	
+	private class MoveThread extends Thread{
+		
+		Direction direction;
+		
+		MoveThread(Direction directionIn){
+			direction = directionIn;
+		}
+		
+		public void run(){
+			System.out.println("You are moving " + direction.name());	
+			try{
+				synchronized(lock){
+				serverStub.sendActions(me, direction); 
+					try{
+//						System.out.println("waiting now");
+						lock.wait();
+
+//						System.out.println("done waiting");
+					   } catch (InterruptedException e){
+						   System.out.println("Next round should be now.");
+					   }
+				    }
+
+//				System.out.println("after synchronized, getting surroundings");
+				printSurroundings(serverStub.getSurroundings(me));
+				hasMoved = false;
+//				System.out.println("gotem");
+			   } catch (RemoteException e){
+				   System.out.println("Disconnected from the server!");
+				   e.printStackTrace();
+			   }
+		}
+	}
+	
 	public Client() throws RemoteException{
 		
 		
 		scanner = new Scanner(System.in);
 		System.out.println("Please enter your name: ");	
 		
-		String name = scanner.nextLine();
+		name = scanner.nextLine();
 		String host = "localhost";
 		
 		try {			
@@ -211,11 +258,11 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 		   
 		   String input = moveScanner.nextLine();
 		   switch (input){
-		   case "1": move(Direction.NORTH); break;
-		   case "2": move(Direction.EAST); break;
-		   case "3": move(Direction.SOUTH); break;
-		   case "4": move(Direction.WEST); break;
-		   case "0": move(Direction.STAY); break;
+		   case "1": new MoveThread(Direction.NORTH).start(); break;
+		   case "2": new MoveThread(Direction.EAST).start(); break;
+		   case "3": new MoveThread(Direction.SOUTH).start(); break;
+		   case "4": new MoveThread(Direction.WEST).start(); break;
+		   case "0": new MoveThread(Direction.STAY).start(); break;
 		   case "b": break;
 		   default : System.out.println("moveinterpreter doesnt know shit\n");
 		   			 moveInterpreter();
@@ -228,16 +275,18 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 	private void move(Direction direction) {
 		System.out.println("You are moving " + direction.name());	
 		try{
-			serverStub.sendActions(me, direction); 
 			synchronized(lock){
+			serverStub.sendActions(me, direction); 
 				try{
 //					System.out.println("waiting now");
 					lock.wait();
+
 //					System.out.println("done waiting");
 				   } catch (InterruptedException e){
 					   System.out.println("Next round should be now.");
 				   }
-			   }
+			    }
+
 //			System.out.println("after synchronized, getting surroundings");
 			printSurroundings(serverStub.getSurroundings(me));
 //			System.out.println("gotem");
@@ -260,8 +309,8 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 						
 			try {
 				state = PlayerState.TURNBASED;
+				gui = new MainGUI(listener);
 				printSurroundings(serverStub.getSurroundings(me));
-				
 				
 			} catch (RemoteException e) {
 				System.out.println("Disconnected from the server!");
@@ -277,10 +326,21 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 		System.out.println("South of you is a " + tiles[3].getType().name());
 		System.out.println("West of you is a " + tiles[4].getType().name());
 		
+		updateGui();
 		//TODO: uncomment this when we implement 
 //		gui.updateTiles(surroundings, direction);
 //		printNearbyPlayers();
 //		gui.repaint();
+	}
+	
+	private void updateGui(){
+		try {
+			gui.updateTiles(serverStub.getSurroundings(me), moveDirection);
+			gui.updateNearbyPlayers(serverStub.getNearbyPlayer(me));
+			gui.repaint();
+		} catch (RemoteException e) {
+			e.printStackTrace();
+		}
 	}
 
 
@@ -297,6 +357,9 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 	@Override
 	public void wakeUpBattle() throws RemoteException {
 		synchronized (battleLock){
+			if(state != PlayerState.INBATTLE){
+				bGui = new BattleGUI(battleListener);
+			}
 			state = PlayerState.INBATTLE;
 			battleLock.notify();
 		}
@@ -304,10 +367,11 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 
 	@Override
 	public void sendTargetData(List<TargetData> tmpData) throws RemoteException {
+
 		for(TargetData curData : tmpData){
 			System.out.println(curData.toString());
 		}
-		System.out.println("");
+		bGui.updateTargets(tmpData);
 	}
 
 	@Override
@@ -317,6 +381,7 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 		System.out.println("Battle is over! Press any key to continue.");
 //		printSurroundings(serverStub.getSurroundings(me));
 		synchronized(lock){
+			bGui.setVisible(false);
 			state = PlayerState.TURNBASED;
 			lock.notify();
 		}
@@ -326,6 +391,8 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 	public void notifyVictory() throws RemoteException {
 		state = PlayerState.GAMEOVER;
 		System.out.println("You are Victorious!");
+		bGui.setVisible(false);
+		gui.sendMessage("The Game is over. You have won! Glory to " + name + "!");
 		looping = false;
 		battleLoop = false;
 	}
@@ -334,7 +401,60 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 	public void notifyDead() throws RemoteException {
 		state = PlayerState.DEAD;
 		System.out.println("YOU DIED!");
+		bGui.lastWords();
 		looping = false;
 		battleLoop = false;
+	}
+	
+	private class SuperiorActionListener implements ActionListener {
+		
+		public void actionPerformed(ActionEvent e) {
+			
+			synchronized(guiLock){
+				if (!hasMoved){
+					
+					hasMoved = true;
+					
+					System.out.println("Action Performed!!");
+					
+					Object source = e.getSource();
+					
+					boolean buttonBool = false;
+					Direction tmpDirection = Direction.STAY;
+					if(source == gui.getUpButton()){tmpDirection = Direction.NORTH; buttonBool=true;} 
+					else if(source  == gui.getRightButton()){tmpDirection = Direction.EAST; buttonBool=true;;} 
+					else if(source == gui.getDownButton()){tmpDirection = Direction.SOUTH; buttonBool=true;} 
+					else if(source == gui.getLeftButton()){tmpDirection = Direction.WEST; buttonBool=true;}
+					else if(source == gui.getRestButton1()||source == gui.getRestButton2()){tmpDirection = Direction.STAY; buttonBool=true;}
+					if(buttonBool){
+						moveDirection = tmpDirection;
+//						try {
+//							serverStub.sendActions(me, direction2);
+//						} catch (RemoteException e1) {
+//							e1.printStackTrace();
+//							System.out.println("Disconnected from the server!");
+//						}
+						new MoveThread(moveDirection).start();
+//						move(direction2);
+					}
+				}
+			}
+		}
+	}
+	
+	private class SuperiorBattleActionListener implements ActionListener {
+		public void actionPerformed(ActionEvent e){
+		
+			String input = bGui.getInputField().getText();
+			if(e.getSource() == bGui.getInputField()){
+				try{
+					serverStub.sendAttack(me, input);
+					bGui.clearText();
+				} catch (RemoteException exc){
+					System.out.println("Disconnected from the server!");
+					exc.printStackTrace();
+				}
+			}
+		}
 	}
 }

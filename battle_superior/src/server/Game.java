@@ -15,7 +15,7 @@ public class Game {
 	
 	
 	
-	private Map<Integer, Player> everyPlayerMap = new HashMap<Integer, Player>();
+	private Map<Integer, Player> everyPlayerMap = new ConcurrentHashMap<Integer, Player>();
 	//list of arrays, first entry is the player id, second entry is movement
 	private Map<Integer, Direction> actionMap = new HashMap<Integer, Direction>();
 	//map of every playerId containing a boolean if he has already moved this turn
@@ -24,14 +24,14 @@ public class Game {
 	private Map<Integer, Player> alivePlayers = new ConcurrentHashMap<Integer, Player>();
 	//Map <battleId, Battle>
 	//relates a battleId to an actual battle
-	private Map<Integer, Battle> battleIdToBattle = new HashMap<Integer, Battle>();
+	private Map<Integer, Battle> battleIdToBattle = new ConcurrentHashMap<Integer, Battle>();
 	//Map <playerId, battleId>
 	//relates a player id to a battle id
 	private Map<Integer, Integer> playerToBattleId = new ConcurrentHashMap<Integer, Integer>();
 
 	//	private ArrayList<int[]> actionList = new ArrayList<int[]>();	//TODO check if the move is valid as soon as the client sends it to the server
-	private int width = 1;
-	private int height = 1;
+	private int width = 3;
+	private int height = 3;
 	private World gameWorld;
 	
 	private GameState gameState;
@@ -350,11 +350,27 @@ public class Game {
 
 	//formally and brutally executes the player.
 	public void killPlayer(int playerId) {
+//		removeFromWorld(everyPlayerMap.get(playerId));
+//		actionMap.remove(playerId);
+//		alivePlayers.remove(playerId);
+		everyPlayerMap.get(playerId).setAlive(false);
+//		hasTakenActionMap.remove(playerId);
+	}
+	
+	public void removeDeadPlayer(int playerId){
 		removeFromWorld(everyPlayerMap.get(playerId));
 		actionMap.remove(playerId);
 		alivePlayers.remove(playerId);
-		everyPlayerMap.get(playerId).setAlive(false);
 		hasTakenActionMap.remove(playerId);
+//		everyPlayerMap.remove(playerId);
+	}
+	
+	public void removeDeadPlayers(){
+		for (Entry<Integer, Player> entry : everyPlayerMap.entrySet()){
+			if (!entry.getValue().isAlive()){
+				removeDeadPlayer(entry.getKey());
+			}
+		}
 	}
 
 	public void respawn(Player player) {
@@ -446,9 +462,14 @@ public class Game {
 	}
 
 	public void relayAttack(Integer playerId, String inputIn) {
-		Battle curBattle = battleIdToBattle.get(playerToBattleId.get(playerId));
-		curBattle.attack(inputIn);
-		System.out.println("Player (ID: " + playerId + ") has attacked with " + inputIn);
+		try{
+			Battle curBattle = battleIdToBattle.get(playerToBattleId.get(playerId));
+			curBattle.attack(inputIn);
+			System.out.println("Player (ID: " + playerId + ") has attacked with " + inputIn);
+		} catch(Exception e){
+			e.printStackTrace();
+			System.out.println("Invalid attack!");
+		}
 	}
 
 	public void endBattle(Battle battle) {
