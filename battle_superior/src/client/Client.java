@@ -272,29 +272,29 @@ public class Client extends UnicastRemoteObject implements ClientInterface{
 
 	/**sends the players move to the server, waits until the tick starts and then asks the server for his new surroundings.
 	 * @param direction the direction the player wants to move in */
-	private void move(Direction direction) {
-		System.out.println("You are moving " + direction.name());	
-		try{
-			synchronized(lock){
-			serverStub.sendActions(me, direction); 
-				try{
-//					System.out.println("waiting now");
-					lock.wait();
-
-//					System.out.println("done waiting");
-				   } catch (InterruptedException e){
-					   System.out.println("Next round should be now.");
-				   }
-			    }
-
-//			System.out.println("after synchronized, getting surroundings");
-			printSurroundings(serverStub.getSurroundings(me));
-//			System.out.println("gotem");
-		   } catch (RemoteException e){
-			   System.out.println("Disconnected from the server!");
-			   e.printStackTrace();
-		   }
-	}
+//	private void move(Direction direction) {
+//		System.out.println("You are moving " + direction.name());	
+//		try{
+//			synchronized(lock){
+//			serverStub.sendActions(me, direction); 
+//				try{
+////					System.out.println("waiting now");
+//					lock.wait();
+//
+////					System.out.println("done waiting");
+//				   } catch (InterruptedException e){
+//					   System.out.println("Next round should be now.");
+//				   }
+//			    }
+//
+////			System.out.println("after synchronized, getting surroundings");
+//			printSurroundings(serverStub.getSurroundings(me));
+////			System.out.println("gotem");
+//		   } catch (RemoteException e){
+//			   System.out.println("Disconnected from the server!");
+//			   e.printStackTrace();
+//		   }
+//	}
 
 	/** waiting for the game to start */
 	private void waitForGameStart() {
